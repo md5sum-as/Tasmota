@@ -7,6 +7,8 @@
 */
 
 #ifdef USE_LD2410
+#ifndef USE_LD2410S
+
 /*********************************************************************************************\
  * HLK-LD2410 24GHz smart wave motion sensor
  * 
@@ -645,4 +647,5 @@ bool Xsns102(uint32_t function) {
   return result;
 }
 
+#endif  // USE_LD2410S
 #endif  // USE_LD2410

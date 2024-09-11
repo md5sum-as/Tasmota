@@ -1083,7 +1083,7 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_CM11_TXD),                 // CM110x Serial interface
   AGPIO(GPIO_CM11_RXD),                 // CM110x Serial interface
 #endif
-#ifdef USE_LD2410                       // xsns_102_ld2410.ino
+#if defined(USE_LD2410) || defined (USE_LD2410S)                       // xsns_102_ld2410.ino
   AGPIO(GPIO_LD2410_TX),                // HLK-LD2410 Serial interface
   AGPIO(GPIO_LD2410_RX),                // HLK-LD2410 Serial interface
 #endif

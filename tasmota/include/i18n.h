@@ -140,6 +140,7 @@
 #define D_JSON_OUTPUT_POWER "OutputPower"
 #define D_JSON_O2 "Oxygen"
 #define D_JSON_PERIOD "Period"
+#define D_JSON_PEOPLE "People"
 #define D_JSON_PH "pH"
 #define D_JSON_PHASE_ANGLE "PhaseAngle"
 #define D_JSON_POWERFACTOR "Factor"

@@ -70,5 +70,15 @@
         "tooltip": "PlatformIO: Rebuild IntelliSense Index",
         "commands": "platformio-ide.rebuildProjectIndex"
       }
-    ]
+    ],
+    "files.associations": {
+      "*.tcc": "cpp",
+      "fstream": "cpp",
+      "istream": "cpp",
+      "limits": "cpp",
+      "streambuf": "cpp",
+      "functional": "cpp",
+      "random": "cpp",
+      "ostream": "cpp"
+    }
   }
