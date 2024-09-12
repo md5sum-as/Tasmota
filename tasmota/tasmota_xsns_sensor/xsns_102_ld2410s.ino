@@ -56,6 +56,13 @@
 #define LD2410S_CMND_READ_HOLD            0x77
 #define LD2410S_CMND_OUTPUT_MODE          0x7A
 
+#define CMD_LD2410S_Read_Parametrs  40
+#define CMD_LD2410S_Write_Common  50
+#define CMD_LD2410S_Out_Mode  60
+#define CMD_LD2410S_Auto_Update 100
+#define CMD_LD2410S_Write_Trigger 70
+#define CMD_LD2410S_Write_Hold 65
+
 const uint8_t LD2410_config_header[4] = {0xFD, 0xFC, 0xFB, 0xFA};
 const uint8_t LD2410_config_footer[4] = {0x04, 0x03, 0x02, 0x01};
 const uint8_t LD2410_target_header[4] = {0xF4, 0xF3, 0xF2, 0xF1};
@@ -74,58 +81,63 @@ struct {
   uint8_t distance_report_f;
   uint8_t response_speed;
 // gates param
-  uint16_t trigger_energy[LD2410S_NUM_GATES];
-  uint16_t hold_energy[LD2410S_NUM_GATES];
+  uint8_t trigger_energy[LD2410S_NUM_GATES]; // not 16
+  uint8_t hold_energy[LD2410S_NUM_GATES]; // not 16
 // Report values
   uint16_t detect_distance;
-  uint16_t energy[LD2410S_NUM_GATES];
+  uint8_t energy[LD2410S_NUM_GATES]; // not 16
   uint8_t human;
   uint8_t human_last;
   
-  uint8_t state;
+//  uint8_t state;
   uint8_t step;
   uint8_t retry;
   uint8_t next_step;
   uint8_t byte_counter;
   uint8_t ack;
+  uint8_t out_mode;
+  uint8_t report_type;
+  uint8_t follow;
+// autoupdate
+  uint8_t auto_upd__scale;
+  uint8_t auto_upd_retension;
+  uint8_t auto_upd_time;
 } LD2410S;
-
-/********************************************************************************************/
-
-uint32_t ToBcd(uint32_t value) {
-  return ((value >> 4) * 10) + (value & 0xF);
-}
 
 /********************************************************************************************/
 
 void Ld1410HandleTargetData(void) {
   if (LD2410S.step > 150) {LD2410S.step = 20;} //Stop boot delay on receive valid data
 /* 
-F4F3F2F1
-4600
-01
-02
-9100
-4600
-00000000
-543D0000
-1D160000
-2E070000
-D8020000
-B0040000
-DF000000
-FD010000
-74040000
-B4070000
-72090000
-F0040000
-C8000000
-F0040000
-A4060000
-CE050000
-F8F7F6F5
+F4F3F2F1  - 0..3
+4600      - 4,5 length 70
+01        - 6 type
+02        - 7 people
+9100      - 8,9 distance
+4600      - 10,11 - old dist???
+00000000  - 12..15 0..3
+543D0000  - 16..19 4..7
+1D160000  - 20..23 8..11
+2E070000 D8020000 B0040000 DF000000 FD010000 74040000 B4070000 72090000 F0040000 C8000000 F0040000 A4060000 CE050000 F8F7F6F5
 */
-
+  if ((LD2410S.buffer[6] == 1) && (LD2410S.buffer[4] == 70)) {
+    if (LD2410S.report_type == 3) {
+      Ld2410ExecCommand(CMD_LD2410S_Read_Parametrs);
+    }
+    LD2410S.report_type = 1;
+    LD2410S.detect_distance = LD2410S.buffer[9] << 8 | LD2410S.buffer[8];
+    LD2410S.human = LD2410S.buffer[7];
+    for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+      LD2410S.energy[i] = /*LD2410S.buffer[i * 4 + 13] << 8 |*/ LD2410S.buffer[i * 4 + 12];
+    }
+  }
+  if ((LD2410S.buffer[6]) == 3) {
+    /* F4F3F2F1 0300 03    6400 F8F7F6F5 
+               len  type  percent
+    */
+    LD2410S.report_type = 3;
+    LD2410S.detect_distance = LD2410S.buffer[7];
+  }
 }
 
 
@@ -153,6 +165,21 @@ void Ld1410HandleConfigData(void) {
     LD2410S.status_report_f = LD2410S.buffer[22];
     LD2410S.distance_report_f = LD2410S.buffer[26];
     LD2410S.response_speed = LD2410S.buffer[30];
+  } else if (LD2410S_CMND_READ_TRIGGER == LD2410S.buffer[6]) {
+    /*FDFCFBFA - 0..3
+    4400 - 4,5
+    7301 - 6,7
+    0000 - 8,9
+    30000000 2A000000 24000000 22000000 20000000  1F000000 1F000000 1F000000 1F000000 1F000000 1F000000 1F000000 1F000000 1F000000 1F000000 1F000000 04030201
+    10       14       20   
+    */
+    for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+      LD2410S.trigger_energy[i] = /*LD2410S.buffer[i * 4 + 11] << 8 |*/ LD2410S.buffer[i * 4 + 10];
+    }  
+  } else if (LD2410S_CMND_READ_HOLD == LD2410S.buffer[6]) {
+    for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+      LD2410S.hold_energy[i] = /*LD2410S.buffer[i * 4 + 11] << 8 |*/ LD2410S.buffer[i * 4 + 10];
+    }  
   }
 }
 
@@ -169,6 +196,10 @@ bool Ld2410MatchShort(uint32_t offset) {
   if (LD2410S.buffer[offset+4] != 0x62) { return false; }
   LD2410S.detect_distance=LD2410S.buffer[offset+3] << 8 | LD2410S.buffer[offset+2];
   LD2410S.human = LD2410S.buffer[offset+1];
+  if (LD2410S.report_type == 3) {
+    Ld2410ExecCommand(CMD_LD2410S_Read_Parametrs);
+  }
+  LD2410S.report_type = 0;
   if (LD2410S.step > 150) {LD2410S.step = 20;}  //Stop boot delay on receive valid data
   return true;
 }
@@ -259,9 +290,9 @@ void Ld2410SetConfigMode(void) {                                // 0xFF
   Ld2410SendCommand(LD2410S_CMND_START_CONFIGURATION, value, sizeof(value));
 }
 
-void Ld2410SetOutputMode(uint8 mode) {
+void Ld2410SetOutputMode(void) {
   uint8_t value[6] = { 0,0,0,0,0,0 };
-  value[2] = mode?1:0;
+  value[2] = LD2410S.out_mode?1:0;
   Ld2410SendCommand(LD2410S_CMND_OUTPUT_MODE, value, sizeof(value));
 }
 
@@ -294,6 +325,41 @@ value[32] = LD2410S.response_speed;
 Ld2410SendCommand(LD2410S_CMND_SET_COMMON, value, sizeof(value));
 }
 
+#define Ld2410ReadTrigger() Ld2410ReadTriggerHold(LD2410S_CMND_READ_TRIGGER)
+#define Ld2410ReadHold() Ld2410ReadTriggerHold(LD2410S_CMND_READ_HOLD)
+void Ld2410ReadTriggerHold(uint8_t cmdn) {
+  uint8_t value[32] = {0,0, 1,0, 2,0, 3,0, 4,0, 5,0, 6,0, 7,0, 8,0, 9,0, 10,0, 11,0, 12,0, 13,0, 14,0, 15,0};
+  Ld2410SendCommand(cmdn, value, sizeof(value));
+}
+
+void Ld2410AutoUpdate(void) {
+  uint8_t value[6] = { 0 };
+  value[0] = LD2410S.auto_upd__scale;
+  value[2] = LD2410S.auto_upd_retension;
+  value[4] = LD2410S.auto_upd_time;
+  Ld2410SendCommand(LD2410S_CMND_AUTO_THRESHOLD, value, sizeof(value));
+}
+
+#define Ld2410WriteTrigger() Ld2410WriteTriggerHold(LD2410S_CMND_WRITE_TRIGGER)
+#define Ld2410WriteHold() Ld2410WriteTriggerHold(LD2410S_CMND_WRITE_HOLD)
+void Ld2410WriteTriggerHold(uint8_t cmnd) {
+  uint8_t value[96] = { 0 };
+  for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+    value[i*6]=i;
+    if (cmnd == LD2410S_CMND_WRITE_TRIGGER) {
+      value[i*6+2]=LD2410S.trigger_energy[i];
+    }else{
+      value[i*6+2]=LD2410S.hold_energy[i];      
+    }
+  }
+  Ld2410SendCommand(cmnd, value, sizeof(value));
+}
+
+void Ld2410ExecCommand(uint8_t cmnd) {
+    LD2410S.step = 15;
+    LD2410S.next_step = cmnd;
+}
+
 /********************************************************************************************/
 
 void Ld2410Every100MSecond(void) {
@@ -304,17 +370,77 @@ void Ld2410Every100MSecond(void) {
       case 200:
         LD2410S.step = 15;
         break;
+      // 100 auto update
+      case 99:
+        Ld2410AutoUpdate();
+        LD2410S.step = 5;
+        break;
+
+      // 70 - write trigger
+      case 69:
+        Ld2410WriteTrigger();
+        LD2410S.retry = 2;
+        break;
+      case 67:
+        if (LD2410S.ack != LD2410S_CMND_WRITE_TRIGGER) {
+          if (LD2410S.retry--) {
+            LD2410S.step=70;
+            break;
+          }
+        }
+        LD2410S.step = 40; // reread params
+        break;
+
+      // 65 - write hold
+      case 64:
+        Ld2410WriteHold();
+        LD2410S.retry = 2;
+        break;
+      case 62:
+        if (LD2410S.ack != LD2410S_CMND_WRITE_HOLD) {
+          if (LD2410S.retry--) {
+            LD2410S.step=65;
+            break;
+          }
+        }
+        LD2410S.step = 40; // reread params
+        break;
+
+      // 60 - Out mode
+      case 59:
+        Ld2410SetOutputMode();
+        LD2410S.retry = 2;
+        break;
+      case 57:  
+        if (LD2410S.ack != LD2410S_CMND_OUTPUT_MODE) {
+          if (LD2410S.retry--) {
+            LD2410S.step=60;
+            break;
+          }
+        }
+        LD2410S.step = 5; // End command
+        break;
 
       // 50 - write common
       case 49:
         Ld2410SetCommonParametrs();
+        LD2410S.retry = 2;
+        break;
+      case 47:
+        if (LD2410S.ack != LD2410S_CMND_SET_COMMON) {
+          if (LD2410S.retry--) {
+            LD2410S.step=50;
+            break;
+          }
+        }
+        LD2410S.step = 40; // read params
         break;
 
-      // 40 - read params
+// 40 - read params
       case 39:
         Ld2410ReadCommonParameters();
+        LD2410S.retry = 4;
         break;
-
       case 37:
         if (LD2410S.ack != LD2410S_CMND_READ_COMMON) {
           if (LD2410S.retry--) {
@@ -322,15 +448,37 @@ void Ld2410Every100MSecond(void) {
             break;
           }
         }
+        break;
+// 35 - read trigger
+      case 34:
+        Ld2410ReadTrigger();
+        LD2410S.retry = 2;
+        break;
+      case 32:
+        if (LD2410S.ack != LD2410S_CMND_READ_TRIGGER) {
+          if (LD2410S.retry--) {
+            LD2410S.step=35;
+            break;
+          }
+        }
+        break;
+// 30 - read hold
+      case 29:
+        Ld2410ReadHold();
+        LD2410S.retry = 2;
+        break;
+      case 27:
+        if (LD2410S.ack != LD2410S_CMND_READ_HOLD) {
+          if (LD2410S.retry--) {
+            LD2410S.step=30;
+            break;
+          }
+        }
         LD2410S.step=5; // End command
         break;
 
-      case 28:
-        break;
-      case 26:
-        break;
-      // 20 - loop
-      // 15 - Config mode
+// 20 - loop
+// 15 - Config mode
       case 14:
         Ld2410SetConfigMode();                                  // Stop running mode
         break;
@@ -359,6 +507,8 @@ void Ld2410EverySecond(void) {
   if (LD2410S.human != LD2410S.human_last) {
     LD2410S.human_last = LD2410S.human;
     MqttPublishSensor();
+  }else if ((LD2410S.report_type ==3 ) || (LD2410S.follow)) {
+    MqttPublishSensor();
   }
 }
 
@@ -373,10 +523,10 @@ void Ld2410Detect(void) {
 #ifdef ESP32
       AddLog(LOG_LEVEL_DEBUG, PSTR("LD2: Serial UART%d"), LD2410Serial->getUart());
 #endif
+    LD2410S.retry = 4;
+    LD2410S.step = 250;
+    LD2410S.next_step = CMD_LD2410S_Read_Parametrs;
 
-     LD2410S.retry = 4;
-     LD2410S.step = 250;
-     LD2410S.next_step = 40;
     }
   }
 }
@@ -386,22 +536,42 @@ void Ld2410Detect(void) {
 \*********************************************************************************************/
 
 const char kLd2410Commands[] PROGMEM = "LD2410S_|"  // Prefix
-  "Common|Get|EngineeringEnd|EngineeringStart";
+  "SetCommon|Out_Mode|AutoUpdate|Parameters|SetTrigger|SetHold|Help|ReRead|Follow";
 
 void (* const Ld2410Command[])(void) PROGMEM = {
-  &CmndLd2410Common, &CmndLd2410last, &CmndLd2410EngineeringEnd, &CmndLd2410EngineeringStart };
+  &CmndLd2410Common, &CmndLd2410OutMode, &CmndLd2410AutoUpdate, &CmndLd2410Response, &CmndLd2410Trigger, &CmndLd2410Hold, &CmndLd2410Help, &CmndLd2410ReRead, &CmndLd2410Follow};
 
-void Ld2410Response(void) {
-  // Response_P(PSTR("{\"LD2410\":{\"Duration\":%d,\"Moving\":{\"Gates\":%d,\"Sensitivity\":["),
-  //   LD2410.no_one_duration, LD2410.max_moving_distance_gate);
-  // for (uint32_t i = 0; i <= LD2410_MAX_GATES; i++) {
-  //   ResponseAppend_P(PSTR("%s%d"), (i==0)?"":",", LD2410.moving_sensitivity[i]);
-  // }
-  // ResponseAppend_P(PSTR("]},\"Static\":{\"Gates\":%d,\"Sensitivity\":["), LD2410.max_static_distance_gate);
-  // for (uint32_t i = 0; i <= LD2410_MAX_GATES; i++) {
-  //   ResponseAppend_P(PSTR("%s%d"), (i==0)?"":",", LD2410.static_sensitivity[i]);
-  // }
-  // ResponseAppend_P(PSTR("]}}}"));
+void CmndLd2410Help(void) {
+  Response_P(PSTR("Available commands: LD2410S_Parameters (display parameters), LD2410S_ReRead (read param from module), LD2410S_SetCommon, LD2410S_SetTrigger, LD2410S_SetHold, LD2410S_Out_Mode (0-short, 1-normal), LD2410S_AutoUpdate, LD2410S_Follow (0/1 every 1 sec.)"));
+}
+
+void CmndLd2410Response(void) {
+  Response_P(PSTR("{\"LD2410S_Common\":{\"Near Door\": %d,\"Far Door\":%d,\"Hold Time\":%d,\"Status freq\":%d,\"Distance freq\":%d,\"Response speed\":%d}"),
+              LD2410S.near_end, LD2410S.far_end, LD2410S.hold_duration, LD2410S.status_report_f, LD2410S.distance_report_f,LD2410S.response_speed);
+  ResponseAppend_P(PSTR(",\"Trigger values\":["));
+  for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+    ResponseAppend_P(PSTR("%d"), LD2410S.trigger_energy[i]);
+    if (i < (LD2410S_NUM_GATES-1)) {
+      ResponseAppend_P(PSTR(","));
+    } else {
+      ResponseAppend_P(PSTR("]"));
+    }
+  }
+  ResponseAppend_P(PSTR(",\"Hold values\":["));
+  for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+    ResponseAppend_P(PSTR("%d"), LD2410S.hold_energy[i]);
+    if (i < (LD2410S_NUM_GATES-1)) {
+      ResponseAppend_P(PSTR(","));
+    } else {
+      ResponseAppend_P(PSTR("]"));
+    }
+  }
+  ResponseJsonEnd();
+}
+
+void CmndLd2410ReRead(void) {
+  Ld2410ExecCommand(CMD_LD2410S_Read_Parametrs);
+  Response_P(PSTR("Accepted... Use LD2410S_Parameters after 1 second."));
 }
 
 void CmndLd2410Common(void) {
@@ -426,22 +596,71 @@ void CmndLd2410Common(void) {
     LD2410S.distance_report_f = (uint8_t)param[4];
     LD2410S.response_speed = (param[5]>5?10:5);
 
-    LD2410S.retry = 4;
-    LD2410S.step = 15;
-    LD2410S.next_step = 50;
-
+    Ld2410ExecCommand(CMD_LD2410S_Write_Common);
+//    Response_P(PSTR("Accepted."));
+    CmndLd2410Response();
+  } else {
+    Response_P(PSTR("Use LD2410S_SetCommon near_door,far_door,hold_time,status_freq,distance_freq,response_speed"));
   }
-  Response_P(PSTR("{\"LD2410S_Common\":{\"Near Door\": %d,\"Far Door\":%d,\"Hold Time\":%d,\"Status freq\":%d,\"Distance freq\":%d,\"Responce speed\":%d}}"),
-              LD2410S.near_end, LD2410S.far_end, LD2410S.hold_duration, LD2410S.status_report_f, LD2410S.distance_report_f,LD2410S.response_speed);
 }
 
-void CmndLd2410last(void) {
+void CmndLd2410OutMode(void) {
+  char Argument[XdrvMailbox.data_len];
+  ArgV(Argument,1);
+  LD2410S.out_mode = atoi(Argument);
+  Response_P(PSTR("{\"LD2410S_out_mode\":%d}"),LD2410S.out_mode);
+  Ld2410ExecCommand(CMD_LD2410S_Out_Mode);
 }
 
-void CmndLd2410EngineeringEnd(void) {
+void CmndLd2410Follow(void) {
+  char Argument[XdrvMailbox.data_len];
+  ArgV(Argument,1);
+  LD2410S.follow = atoi(Argument);
+  Response_P(PSTR("{\"LD2410S_Follow\":%d}"),LD2410S.follow);
 }
 
-void CmndLd2410EngineeringStart(void) {
+void CmndLd2410AutoUpdate(void) {
+  if (ArgC() != 3) {
+    Response_P(PSTR("Use LS2410S_AutoUpdate trigger_scale,retension_factor,Scan_time"));
+    return;
+  }
+  uint32_t param[3] = {0};
+  ParseParameters(3, param);
+  LD2410S.auto_upd__scale = param[0];
+  LD2410S.auto_upd_retension = param[1];
+  LD2410S.auto_upd_time = param[2];
+  Ld2410ExecCommand(CMD_LD2410S_Auto_Update);
+  Response_P(PSTR("LD2410S Auto Update started..."));
+}
+
+void CmndLd2410Trigger(void) {
+    if (ArgC() != 16) {
+    Response_P(PSTR("Use LS2410S_SetTrigger 1,2,..16"));
+    return;
+  }
+  uint32_t param[16] = { 0 };
+  ParseParameters(16, param);
+  for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+    LD2410S.trigger_energy[i]=param[i];
+  }
+  Ld2410ExecCommand(CMD_LD2410S_Write_Trigger);
+//  Response_P(PSTR("Accepted."));
+    CmndLd2410Response();
+}
+
+void CmndLd2410Hold(void) {
+    if (ArgC() != 16) {
+    Response_P(PSTR("Use LS2410S_SetHold 1,2,..16"));
+    return;
+  }
+  uint32_t param[16] = { 0 };
+  ParseParameters(16, param);
+  for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+    LD2410S.hold_energy[i]=param[i];
+  }
+  Ld2410ExecCommand(CMD_LD2410S_Write_Hold);
+//  Response_P(PSTR("Accepted."));
+    CmndLd2410Response();
 }
 
 /*********************************************************************************************\
@@ -450,7 +669,10 @@ void CmndLd2410EngineeringStart(void) {
 
 #ifdef USE_WEBSERVER
 const char HTTP_SNS_LD2410_CM[] PROGMEM =
-  "{s}LD2410 " D_DETECT_DISTANCE "{m}%1_f " D_UNIT_CENTIMETER "{e}";
+  "{s}LD2410S " D_DETECT_DISTANCE "{m}%1_f " D_UNIT_CENTIMETER "{e}";
+
+const char HTTP_SNS_LD2410_UPD[] PROGMEM =
+  "{s}LD2410S Auto Update{m}%d " D_UNIT_PERCENT "{e}";
 
 const char HTTP_SNS_LD2410_ENG[] PROGMEM =
   "{s}LD2410 " D_MOVING_ENERGY_T "{m}%d %d %d %d %d %d %d %d %d{e}"
@@ -463,10 +685,26 @@ void Ld2410Show(bool json) {
   float detect_distance = LD2410S.detect_distance;
 
   if (json) {
-    ResponseAppend_P(PSTR(",\"LD2410\":{\"" D_JSON_DISTANCE "\":%1_f, \"" D_JSON_PEOPLE "\":%1d}"), &detect_distance, LD2410S.human);
-
+    if (LD2410S.report_type != 3) {
+      ResponseAppend_P(PSTR(",\"LD2410S\":{\"" D_JSON_DISTANCE "\":%1_f, \"" D_JSON_PEOPLE "\":%d"), &detect_distance, LD2410S.human);
+      if (LD2410S.report_type == 1) {
+        ResponseAppend_P(PSTR(", \"Energy\":["));
+        for (uint32_t i = 0; i < LD2410S_NUM_GATES; i++) {
+          ResponseAppend_P(PSTR("%d"), LD2410S.energy[i]);
+          if (i < (LD2410S_NUM_GATES-1)) {
+            ResponseAppend_P(PSTR(","));
+          } else {
+            ResponseAppend_P(PSTR("]"));
+          }
+        }
+      }
+      ResponseJsonEnd();
+    }else{
+      ResponseAppend_P(PSTR(",\"LD2410S\":{\"Update threshold\":\"%1d%%\"}"), LD2410S.detect_distance);
+    }
 #ifdef USE_WEBSERVER
   } else {
+    if (LD2410S.report_type != 3) {
      WSContentSend_PD(HTTP_SNS_LD2410_CM, &detect_distance);
 //     if (LD2410.web_engin_mode == 1) {
 //       WSContentSend_PD(HTTP_SNS_LD2410_ENG, 
@@ -478,6 +716,9 @@ void Ld2410Show(bool json) {
 //           LD2410.engineering.static_gate_energy[6],LD2410.engineering.static_gate_energy[7],LD2410.engineering.static_gate_energy[8],
 //           LD2410.engineering.light,LD2410.engineering.out_pin);
 //     }
+    }else{
+      WSContentSend_PD(HTTP_SNS_LD2410_UPD, LD2410S.detect_distance);
+    }
  #endif
   }
 }
