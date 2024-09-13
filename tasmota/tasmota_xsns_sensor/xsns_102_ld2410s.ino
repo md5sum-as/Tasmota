@@ -17,24 +17,17 @@
  * This module works with HLK-LD2410S devices. 
  * The module does not support another HLK-LD2410 devices.
  * 
- * 
- * LD2410Duration 0                            - Set factory default settings
- * LD2410Duration 1..65535                     - Set no-one duration in seconds (default 5)
- * LD2410MovingSens 50,50,40,30,20,15,15,15,15 - Set moving distance sensitivity for up to 9 gates (at 0.75 meter interval)
- * LD2410StaticSens 0,0,40,40,30,30,20,20,20   - Set static distance sensitivity for up to 9 gates (at 0.75 meter interval)
+ * Available commands: , , , ,  (0/1 every 1 sec.)"));
+}
+ * LD2410S_Parameters                          - showing previously received parameters
+ * LD2410S_ReRead                              - reread common, trigger and hold parameters from device
+ * LD2410S_SetCommon 0-16,1-16,10-120,5-80,5-80,5/10 - set common: near door, far door, hold_time, status_freq, distance_freq, response_speed
+ * LD2410S_SetTrigger n,n1..n16                - set trigger values (16)
+ * LD2410S_SetHold n,n1..n16                   - set hold values (16)
+ * LD2410S_Out_Mode 0/1                        - set device output mode 0-short (only distance and 0/1 - no people, 2/3 detect people), 1-normal mode (add energy values per door)
+ * LD2410S_AutoUpdate 2,1,60                   - start autoupdate trigger and hold thresholds/ Params: trigger_scale,retension_factor,scan_time
+ * LD2410S_Follow 0/1                          - if 1 then start reports every seconds
  *
- * LD2410Get                                   - Read last sensors
- * LD2410EngineeringStart                      - Start engineering mode
- * LD2410EngineeringEnd                        - End engineering mode
- *
- * Inspiration:
- * https://community.home-assistant.io/t/mmwave-wars-one-sensor-module-to-rule-them-all/453260/2
- * Resources:
- * https://drive.google.com/drive/folders/1p4dhbEJA3YubyIjIIC7wwVsSo8x29Fq-?spm=a2g0o.detail.1000023.17.93465697yFwVxH
- *
- * Internal info:
- * - After a LD2410 serial command a response takes about 10mS
- * - After a LD2410 restart it takes at least 1000mS before commands are allowed
 \*********************************************************************************************/
 
 #define XSNS_102                         102
@@ -621,7 +614,7 @@ void CmndLd2410Follow(void) {
 
 void CmndLd2410AutoUpdate(void) {
   if (ArgC() != 3) {
-    Response_P(PSTR("Use LS2410S_AutoUpdate trigger_scale,retension_factor,Scan_time"));
+    Response_P(PSTR("Use LS2410S_AutoUpdate trigger_scale,retension_factor,scan_time"));
     return;
   }
   uint32_t param[3] = {0};
