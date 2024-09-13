@@ -14,8 +14,8 @@
  * HLK-LD2410S 24GHz smart wave motion sensor
  * 
  * Attention!
- * This module works with HLK-LD2410, HLK-LD2410B (md5sum-as tested), HLK-LD2410C (md5sum-as tested) devices. 
- * The module does not support HLK-LD2410S (md5sum-as tested) and is not guaranteed to work with other devices.
+ * This module works with HLK-LD2410S devices. 
+ * The module does not support another HLK-LD2410 devices.
  * 
  * 
  * LD2410Duration 0                            - Set factory default settings
