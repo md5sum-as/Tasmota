@@ -666,11 +666,6 @@ const char HTTP_SNS_LD2410_CM[] PROGMEM =
 const char HTTP_SNS_LD2410_UPD[] PROGMEM =
   "{s}LD2410S Auto Update{m}%d " D_UNIT_PERCENT "{e}";
 
-const char HTTP_SNS_LD2410_ENG[] PROGMEM =
-  "{s}LD2410 " D_MOVING_ENERGY_T "{m}%d %d %d %d %d %d %d %d %d{e}"
-  "{s}LD2410 " D_STATIC_ENERGY_T "{m}%d %d %d %d %d %d %d %d %d{e}"
-  "{s}LD2410 " D_LD2410_LIGHT "{m}%d{e}"
-  "{s}LD2410 " D_LD2410_PIN_STATE "{m}%d{e}";
 #endif
 
 void Ld2410Show(bool json) {
@@ -698,16 +693,6 @@ void Ld2410Show(bool json) {
   } else {
     if (LD2410S.report_type != 3) {
      WSContentSend_PD(HTTP_SNS_LD2410_CM, &detect_distance);
-//     if (LD2410.web_engin_mode == 1) {
-//       WSContentSend_PD(HTTP_SNS_LD2410_ENG, 
-//           LD2410.engineering.moving_gate_energy[0],LD2410.engineering.moving_gate_energy[1],LD2410.engineering.moving_gate_energy[2],
-//           LD2410.engineering.moving_gate_energy[3],LD2410.engineering.moving_gate_energy[4],LD2410.engineering.moving_gate_energy[5],
-//           LD2410.engineering.moving_gate_energy[6],LD2410.engineering.moving_gate_energy[7],LD2410.engineering.moving_gate_energy[8],
-//           LD2410.engineering.static_gate_energy[0],LD2410.engineering.static_gate_energy[1],LD2410.engineering.static_gate_energy[2],
-//           LD2410.engineering.static_gate_energy[3],LD2410.engineering.static_gate_energy[4],LD2410.engineering.static_gate_energy[5],
-//           LD2410.engineering.static_gate_energy[6],LD2410.engineering.static_gate_energy[7],LD2410.engineering.static_gate_energy[8],
-//           LD2410.engineering.light,LD2410.engineering.out_pin);
-//     }
     }else{
       WSContentSend_PD(HTTP_SNS_LD2410_UPD, LD2410S.detect_distance);
     }
