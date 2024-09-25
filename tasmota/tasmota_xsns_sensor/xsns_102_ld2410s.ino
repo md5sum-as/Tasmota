@@ -668,6 +668,10 @@ const char HTTP_SNS_LD2410_UPD[] PROGMEM =
 
 #endif
 
+#ifndef D_JSON_PEOPLE
+#define D_JSON_PEOPLE "People"
+#endif
+
 void Ld2410Show(bool json) {
   float detect_distance = LD2410S.detect_distance;
 
