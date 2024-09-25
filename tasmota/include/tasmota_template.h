@@ -202,6 +202,7 @@ enum UserSelectablePins {
   GPIO_BP1658CJ_CLK, GPIO_BP1658CJ_DAT,// BP1658CJ
   GPIO_DINGTIAN_CLK, GPIO_DINGTIAN_SDI, GPIO_DINGTIAN_Q7, GPIO_DINGTIAN_PL, GPIO_DINGTIAN_RCK,  // Dingtian relay board - 595's & 165's pins
   GPIO_LD2410_TX, GPIO_LD2410_RX,      // HLK-LD2410
+  GPIO_LD2410S_TX, GPIO_LD2410S_RX,      // HLK-LD2410
   GPIO_MBR_TX_ENA, GPIO_NRG_MBS_TX_ENA, // Modbus Bridge Serial Transmit Enable
   GPIO_ME007_TRIG, GPIO_ME007_RX,       // ME007 Serial/Trigger interface
   GPIO_TUYAMCUBR_TX, GPIO_TUYAMCUBR_RX, // TuyaMCU Bridge
@@ -1099,6 +1100,10 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #ifdef USE_LD2410                       // xsns_102_ld2410.ino
   AGPIO(GPIO_LD2410_TX),                // HLK-LD2410 Serial interface
   AGPIO(GPIO_LD2410_RX),                // HLK-LD2410 Serial interface
+#endif
+#ifdef USE_LD2410S                      // xsns_102_ld2410s.ino
+  AGPIO(GPIO_LD2410S_TX),                // HLK-LD2410 Serial interface
+  AGPIO(GPIO_LD2410S_RX),                // HLK-LD2410 Serial interface
 #endif
 #ifdef USE_LOX_O2                       // xsns_105_lox_o2.ino
   AGPIO(GPIO_LOX_O2_RX),                // LuminOx Oxygen Sensor LOX-O2 Serial interface
